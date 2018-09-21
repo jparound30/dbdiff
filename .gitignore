@@ -13,3 +13,5 @@
 
 .idea/
 configuration.yaml
+
+*.xlsx
