@@ -1,6 +1,7 @@
 package dbdiff
 
 import (
+	"errors"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
@@ -21,26 +22,48 @@ type Db struct {
 	Schema   string `yaml:"schema"`
 }
 
-func GetConfiguration() *Configuration {
+func LoadConfiguration(configFilePath string) (*Configuration, error) {
+	var err error
 	onceYaml.Do(func() {
-		initializeYaml()
+		if instanceYaml, err = initializeYaml(configFilePath); err != nil {
+			log.Printf("Can not load configuration %+v\n", err)
+		}
 	})
-	return instanceYaml
+	return instanceYaml, err
+}
+
+func GetConfiguration() (*Configuration, error) {
+	var err error
+	if instanceYaml == nil {
+		log.Printf("Need to be initialize with LoadConfiguration()\n")
+		err = errors.New("need to be initialize with LoadConfiguration()")
+	}
+	return instanceYaml, err
 }
 
 var instanceYaml *Configuration
 var onceYaml sync.Once
 
+const DefaultConfigFilePath = "configuration.yaml"
+
 // yamlファイルから構造体を生成
-func initializeYaml() {
-	// TODO 読み込むファイル名を可変にするか？
-	buf, err := ioutil.ReadFile("configuration.yaml")
-	if err != nil {
-		log.Fatalln(err)
+func initializeYaml(configFilePath string) (*Configuration, error) {
+	var buf []byte
+	var err error
+	if len(configFilePath) == 0 {
+		buf, err = ioutil.ReadFile(DefaultConfigFilePath)
+	} else {
+		buf, err = ioutil.ReadFile(configFilePath)
 	}
-	instanceYaml = &Configuration{}
-	err = yaml.Unmarshal(buf, instanceYaml)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err)
+		return nil, err
 	}
+	var instance = &Configuration{}
+	err = yaml.Unmarshal(buf, instance)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	return instance, err
 }

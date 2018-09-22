@@ -16,7 +16,11 @@ import (
 )
 
 func main() {
-	configuration := dbdiff.GetConfiguration()
+	// TODO 引数でconfig指定
+	configuration, err := dbdiff.LoadConfiguration("")
+	if err != nil {
+		log.Fatal("Failed to load configuration file.")
+	}
 	db, err := dbdiff.GetDBInstance(&configuration.Db)
 	if err != nil {
 		log.Fatal("DB instance initialization failed.")
@@ -170,7 +174,11 @@ func collectAllTableData(db *dbdiff.DBManager, tablePks map[string][]string) (*A
 	var err error
 	before := &AllTableStore{AllColumn: map[string][]string{}, AllData: map[string]map[string]*RowObject{}}
 
-	schema := dbdiff.GetConfiguration().Db.Schema
+	config, err := dbdiff.GetConfiguration()
+	if err != nil {
+		return nil, err
+	}
+	schema := config.Db.Schema
 	const allDataQueryFormatStr = "SELECT * FROM %s"
 	const orderBy = " ORDER BY "
 	for tableName, pkColumns := range tablePks {
@@ -237,11 +245,14 @@ func collectAllTableData(db *dbdiff.DBManager, tablePks map[string][]string) (*A
 }
 
 func getPksOfTables(db *dbdiff.DBManager, tableNames []string) (map[string][]string, error) {
-	schema := dbdiff.GetConfiguration().Db.Schema
+	config, err := dbdiff.GetConfiguration()
+	if err != nil {
+		return nil, err
+	}
+	schema := config.Db.Schema
 
 	var stmt *sql.Stmt
-	var err error
-	if dbdiff.GetConfiguration().Db.DbType == "postgresql" {
+	if config.Db.DbType == "postgresql" {
 		stmt, err = db.Prepare(`
 		SELECT
 		       kcu.ordinal_position AS PkOrder,
@@ -266,7 +277,7 @@ func getPksOfTables(db *dbdiff.DBManager, tableNames []string) (map[string][]str
 		    , tb_con.constraint_name
 		    , kcu.ordinal_position
 		`)
-	} else if dbdiff.GetConfiguration().Db.DbType == "mysql" {
+	} else if config.Db.DbType == "mysql" {
 		stmt, err = db.Prepare(`
 		SELECT ORDINAL_POSITION, COLUMN_NAME FROM information_schema.columns WHERE table_schema=database() AND TABLE_NAME = ? AND COLUMN_KEY = 'PRI' ORDER BY ORDINAL_POSITION
 		`)
@@ -318,12 +329,16 @@ func getPksOfTables(db *dbdiff.DBManager, tableNames []string) (map[string][]str
 
 // 全テーブル名を取得
 func getAllTables(db *dbdiff.DBManager) ([]string, error) {
+	config, err := dbdiff.GetConfiguration()
+	if err != nil {
+		return nil, err
+	}
+
 	var tableNames []string
-	var err error
 	var rows *sql.Rows
-	if dbdiff.GetConfiguration().Db.DbType == "postgresql" {
+	if config.Db.DbType == "postgresql" {
 		rows, err = db.Query("select relname as TABLE_NAME from pg_stat_user_tables ORDER BY TABLE_NAME")
-	} else if dbdiff.GetConfiguration().Db.DbType == "mysql" {
+	} else if config.Db.DbType == "mysql" {
 		rows, err = db.Query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=database() ORDER BY TABLE_NAME")
 	}
 	if err != nil {

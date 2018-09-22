@@ -1,0 +1,8 @@
+db:
+  type: postgresql
+  host: localhost
+  port: 5432
+  user: user1
+  password: pswd2
+  name: dbname
+  schema: schema.
