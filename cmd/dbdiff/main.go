@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
+	"github.com/jparound30/dbdiff"
 	"log"
 	_ "net/http/pprof"
 	"os"
@@ -15,8 +16,8 @@ import (
 )
 
 func main() {
-	configuration := GetConfiguration()
-	db, err := GetDBInstance(&configuration.Db)
+	configuration := dbdiff.GetConfiguration()
+	db, err := dbdiff.GetDBInstance(&configuration.Db)
 	if err != nil {
 		log.Fatal("DB instance initialization failed.")
 	}
@@ -164,12 +165,12 @@ func rowColIndexToAlpha(r int, c int) string {
 	return s
 }
 
-func collectAllTableData(db *DBManager, tablePks map[string][]string) (*AllTableStore, error) {
+func collectAllTableData(db *dbdiff.DBManager, tablePks map[string][]string) (*AllTableStore, error) {
 	var totalRecordCount uint64 = 0
 	var err error
 	before := &AllTableStore{AllColumn: map[string][]string{}, AllData: map[string]map[string]*RowObject{}}
 
-	schema := GetConfiguration().Db.Schema
+	schema := dbdiff.GetConfiguration().Db.Schema
 	const allDataQueryFormatStr = "SELECT * FROM %s"
 	const orderBy = " ORDER BY "
 	for tableName, pkColumns := range tablePks {
@@ -235,12 +236,12 @@ func collectAllTableData(db *DBManager, tablePks map[string][]string) (*AllTable
 	return before, err
 }
 
-func getPksOfTables(db *DBManager, tableNames []string) (map[string][]string, error) {
-	schema := GetConfiguration().Db.Schema
+func getPksOfTables(db *dbdiff.DBManager, tableNames []string) (map[string][]string, error) {
+	schema := dbdiff.GetConfiguration().Db.Schema
 
 	var stmt *sql.Stmt
 	var err error
-	if GetConfiguration().Db.DbType == "postgresql" {
+	if dbdiff.GetConfiguration().Db.DbType == "postgresql" {
 		stmt, err = db.Prepare(`
 		SELECT
 		       kcu.ordinal_position AS PkOrder,
@@ -265,7 +266,7 @@ func getPksOfTables(db *DBManager, tableNames []string) (map[string][]string, er
 		    , tb_con.constraint_name
 		    , kcu.ordinal_position
 		`)
-	} else if GetConfiguration().Db.DbType == "mysql" {
+	} else if dbdiff.GetConfiguration().Db.DbType == "mysql" {
 		stmt, err = db.Prepare(`
 		SELECT ORDINAL_POSITION, COLUMN_NAME FROM information_schema.columns WHERE table_schema=database() AND TABLE_NAME = ? AND COLUMN_KEY = 'PRI' ORDER BY ORDINAL_POSITION
 		`)
@@ -316,13 +317,13 @@ func getPksOfTables(db *DBManager, tableNames []string) (map[string][]string, er
 }
 
 // 全テーブル名を取得
-func getAllTables(db *DBManager) ([]string, error) {
+func getAllTables(db *dbdiff.DBManager) ([]string, error) {
 	var tableNames []string
 	var err error
 	var rows *sql.Rows
-	if GetConfiguration().Db.DbType == "postgresql" {
+	if dbdiff.GetConfiguration().Db.DbType == "postgresql" {
 		rows, err = db.Query("select relname as TABLE_NAME from pg_stat_user_tables ORDER BY TABLE_NAME")
-	} else if GetConfiguration().Db.DbType == "mysql" {
+	} else if dbdiff.GetConfiguration().Db.DbType == "mysql" {
 		rows, err = db.Query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=database() ORDER BY TABLE_NAME")
 	}
 	if err != nil {
@@ -542,30 +543,3 @@ func (ats *AllTableStore) extractChangedData(beforeData *AllTableStore) map[stri
 
 	return output
 }
-
-/*
-
-before
-["tableName"]["pkconcatid"] = []ColumnScan]
-
-after
-["tableName"]["pkconcatid"] = []ColumnScan]
-
-pkconcatidはPKCOLUMNがあるものはそれを連結したもの、ないものは全フィールドを連結したものとする
-
-判定順
-Mod beforeにキーがあるかつafterのデータと内容が異なるデータ
-Delete beforeにキーがあるがafterにキーがないデータ
-Add afterにキーがあるがbeforeにキーがないafterのデータ
-それ以外は変化なし
-　これらの状態のマークを各レコードに持たせる(0: 比較前, 1: Add, 2: Delete, 3: Mod, 4: NotModified)
-
-内容比較はカラム名が一致するものを探し、（配列順序固定前提ならindex）、
-Valueの内容(stringで取れるようにしておく)が一致するかどうかで判定。
-
-一致しないフィールドについては、マークをつける(配列順序固定ならindex値の配列)
-
-変化ありとなったものだけを抽出したデータを取っておき、
-Excelに吐く
-
-*/

@@ -1,4 +1,4 @@
-package main
+package dbdiff
 
 import (
 	"gopkg.in/yaml.v2"
