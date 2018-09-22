@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"database/sql"
+	"flag"
 	"fmt"
 	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/jparound30/dbdiff"
@@ -15,9 +16,23 @@ import (
 	"time"
 )
 
+const (
+	DefaultConfigurationYaml    = "configuration.yaml"
+	DefaultOutputResultFilename = "dbdiff_yyyymmdd_hhmmss.xlsx"
+)
+
 func main() {
-	// TODO 引数でconfig指定
-	configuration, err := dbdiff.LoadConfiguration("")
+	// Parse arguments
+	flag.CommandLine.Init(os.Args[0], flag.ExitOnError)
+
+	var configFilePath string
+	flag.StringVar(&configFilePath, "conf", DefaultConfigurationYaml, "Specify path of configuration file.")
+	var outputFileName string
+	flag.StringVar(&outputFileName, "o", DefaultOutputResultFilename, "Filename of result file(.xlsx).")
+
+	flag.Parse()
+
+	configuration, err := dbdiff.LoadConfiguration(configFilePath)
 	if err != nil {
 		log.Fatal("Failed to load configuration file.")
 	}
@@ -156,9 +171,15 @@ func main() {
 		ri += 2
 	}
 
-	var xmlFilename = "dbdiff_" + time.Now().Format("20060102_150405") + ".xlsx"
-	xlsx.SaveAs("./" + xmlFilename)
-	fmt.Println("[ResultOutput] See " + xmlFilename)
+	var xlsxFilename string
+	if outputFileName == DefaultOutputResultFilename {
+		// default filename
+		xlsxFilename = "dbdiff_" + time.Now().Format("20060102_150405") + ".xlsx"
+	} else {
+		xlsxFilename = outputFileName
+	}
+	xlsx.SaveAs(xlsxFilename)
+	fmt.Println("[ResultOutput] See " + xlsxFilename)
 }
 
 func rowColIndexToAlpha(r int, c int) string {
