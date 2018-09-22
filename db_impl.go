@@ -47,7 +47,6 @@ func GetDBInstance(dbConfig *Db) (*DBManager, error) {
 }
 
 func (holder *DBManager) Finalize() error {
-	fmt.Println("DBManager:Finalize()")
 	var err error
 	lock.Lock()
 	if !holder.closed {
