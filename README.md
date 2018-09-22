@@ -1,7 +1,17 @@
 # [dbdiff] Tool to detect data difference in the database
 
-## Configuration
-1. Put `configuration.yaml` file in the current directory.  
+## How to setup
+### Install
+```
+go get github.com/jparound30/dbdiff/cmd/dbdiff
+```
+### or Update
+```
+go get -u github.com/jparound30/dbdiff/cmd/dbdiff
+```
+
+### Configuration
+Put `configuration.yaml` file in the current directory.  
 A sample of `configuration.yaml`is as follows.
 
 ```yaml
@@ -14,12 +24,15 @@ db:
   name: sampledatabase
   schema: hoge.
 ```
-2. Execute `dbdiff` on the command line.
+### Run
+1. Execute `dbdiff` on the command line.
 ```
 dbdiff
 ```
 
-3. Please operate accoding to the messages.
+2. Please operate accoding to the messages.
 
-4. Output result to console, and generate Excel file(.xlsx) in the current directory.
+3. Output result to console, and generate Excel file(.xlsx) in the current directory.
 
+## LIMITATIONS
+- Tested only on macOS High Sierra / Go 1.11
