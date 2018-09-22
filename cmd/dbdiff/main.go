@@ -26,9 +26,6 @@ func main() {
 		log.Fatal("DB instance initialization failed.")
 	}
 	defer db.Finalize()
-	if configuration.Db.DbType == "mysql" {
-		db.SetMaxIdleConns(0)
-	}
 
 	fmt.Println("[INITIALIZING] Collecting Table Information ...")
 	tableNames, err := getAllTables(db)

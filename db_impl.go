@@ -40,6 +40,10 @@ func GetDBInstance(dbConfig *Db) (*DBManager, error) {
 		if err != nil {
 			log.Fatal("[DB] can not get DB", err)
 		}
+		// TODO avoid "unexpected EOF"...
+		if dbConfig.DbType == "mysql" {
+			holder.db.SetMaxIdleConns(0)
+		}
 	}
 	lock.Unlock()
 
