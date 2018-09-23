@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -21,20 +22,23 @@ func GetDBInstance(dbConfig *Db) (*DBManager, error) {
 
 	lock.Lock()
 	if holder.closed {
-		// TODO Postgres以外対応するならこの辺りは見直し必要
 		var connStr string
 		var driverName string
-		if dbConfig.DbType == "postgresql" {
-			const connStringTemplate = "postgresql://%s:%s@%s:%s/%s"
-			fmt.Printf("Connect to ... "+connStringTemplate+"\n", dbConfig.User, "********", dbConfig.Host, dbConfig.Port, dbConfig.Name)
-			connStr = fmt.Sprintf(connStringTemplate, dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
+		switch dbConfig.DbType {
+		case "postgresql":
+			const connStringPostgreSQL = "postgresql://%s:%s@%s:%s/%s"
+			fmt.Printf("Connect to ... "+connStringPostgreSQL+"\n", dbConfig.User, "********", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+			connStr = fmt.Sprintf(connStringPostgreSQL, dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
 			driverName = "pgx"
-		} else if dbConfig.DbType == "mysql" {
-			//connStringMysql = "username:password@protocol(address)/dbname"
+		case "mysql":
+			// "username:password@protocol(address)/dbname"
 			const connStringMysql = "%s:%s@tcp(%s:%s)/%s"
 			fmt.Printf("Connect to ... "+connStringMysql+"\n", dbConfig.User, "********", dbConfig.Host, dbConfig.Port, dbConfig.Name)
 			connStr = fmt.Sprintf(connStringMysql, dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
 			driverName = "mysql"
+		default:
+			err := errors.New("unknown DbType")
+			return nil, err
 		}
 		holder.db, err = sql.Open(driverName, connStr)
 		if err != nil {
