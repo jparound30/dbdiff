@@ -51,7 +51,8 @@ func main() {
 	//}
 
 	fmt.Print("[BEFORE] Collecting snapshot data...")
-	before, err := dbdiff.CollectAllTableData(db, tablePks)
+	before := dbdiff.AllTableStore{}
+	err = before.CollectAllTableData(db, configuration, tablePks)
 	checkErr(err)
 	fmt.Printf(", Total record count: %d ...", before.TotalDataCount)
 	fmt.Println(" COMPLETE!")
@@ -61,10 +62,14 @@ func main() {
 	stdin.Scan()
 
 	fmt.Print("\n[AFTER ] Collecting snapshot data...")
-	after, err := dbdiff.CollectAllTableData(db, tablePks)
+	after := dbdiff.AllTableStore{}
+	err = after.CollectAllTableData(db, configuration, tablePks)
 	checkErr(err)
 	fmt.Printf(", Total record count: %d ...", after.TotalDataCount)
 	fmt.Println("COMPLETE!")
+
+	extractChangedData := after.ExtractChangedData(&before)
+	outputResultToExcelFile(extractChangedData, outputFileName)
 
 	// TODO プロファイル用 そのうち削除
 	//var wg sync.WaitGroup
@@ -75,9 +80,6 @@ func main() {
 	//
 	//wg.Add(1)
 	//wg.Wait()
-
-	extractChangedData := after.ExtractChangedData(before)
-	outputResultToExcelFile(extractChangedData, outputFileName)
 }
 
 func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, outputFileName string) {
@@ -113,8 +115,8 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 		xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), headerCellStyle)
 
 		ci++
-		for _, v := range value[0].ColScans {
-			xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), v.ColumnName)
+		for _, colName := range value[0].ColumnNames {
+			xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), colName)
 			xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), headerCellStyle)
 			ci++
 		}
@@ -124,7 +126,7 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 		for _, v := range value {
 			switch v.DiffStatus {
 			case dbdiff.DiffStatusAdd:
-				fmt.Printf("INSERTED        :%s\n", v.ColScans)
+				fmt.Printf("INSERTED        : %s\n", v)
 				ci = 1
 				xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "追加")
 
@@ -133,7 +135,7 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), col.GetValueString())
 				}
 			case dbdiff.DiffStatusDel:
-				fmt.Printf("DELETED         :%s\n", v.ColScans)
+				fmt.Printf("DELETED         : %s\n", v)
 				ci = 1
 				xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "削除")
 
@@ -144,10 +146,10 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 			case dbdiff.DiffStatusMod:
 				ci = 1
 				if v.IsBeforeData {
-					fmt.Printf("UPDATED[Before] : %s\n", v.ColScans)
+					fmt.Printf("UPDATED[Before] : %s\n", v)
 					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "変更前")
 				} else {
-					fmt.Printf("UPDATED[After ] : %s\n", v.ColScans)
+					fmt.Printf("UPDATED[After ] : %s\n", v)
 					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "変更後")
 				}
 

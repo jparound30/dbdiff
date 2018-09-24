@@ -2,21 +2,30 @@ package dbdiff
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"log"
 	"reflect"
-	"strconv"
 	"strings"
 )
 
-func CollectAllTableData(db DbHolder, tablePks map[string][]string) (*AllTableStore, error) {
+type AllTableStore struct {
+	AllData            map[string]map[string]*RowObject
+	AllColumn          map[string][]string
+	TotalDataCount     uint64
+	alreadyCollectData bool
+}
+
+func (ats *AllTableStore) CollectAllTableData(db DbHolder, config *Configuration, tablePks map[string][]string) error {
+	if ats.alreadyCollectData {
+		return errors.New("already collected data")
+	}
 	var totalRecordCount uint64 = 0
 	var err error
-	before := &AllTableStore{AllColumn: map[string][]string{}, AllData: map[string]map[string]*RowObject{}}
 
-	config, err := GetConfiguration()
-	if err != nil {
-		return nil, err
-	}
+	ats.AllColumn = map[string][]string{}
+	ats.AllData = map[string]map[string]*RowObject{}
+
 	schema := config.Db.Schema
 	const allDataQueryFormatStr = "SELECT * FROM %s"
 	const orderBy = " ORDER BY "
@@ -33,29 +42,30 @@ func CollectAllTableData(db DbHolder, tablePks map[string][]string) (*AllTableSt
 		}
 		rows, err := db.Query(query)
 		if err != nil {
-			return &AllTableStore{}, err
+			rows.Close()
+			return err
 		}
 
 		var tableRows = map[string]*RowObject{}
 
 		columns, err := rows.Columns()
 		if err != nil {
-			return &AllTableStore{}, err
+			rows.Close()
+			return err
 		}
 
-		before.AllColumn[tableName] = columns
+		ats.AllColumn[tableName] = columns
 
 		for rows.Next() {
 			totalRecordCount++
 
 			var r []*ColumnScan
-			for _, columnName := range columns {
-				//fmt.Printf("%s: %s, %s, %s\n", columnName, columnTypes[i].Name(), columnTypes[i].DatabaseTypeName(), columnTypes[i].ScanType())
+			for range columns {
 				// 全部文字列で取ってしまう TODO 乱暴？
 				// TODO　OracleではNullStringが使えないかも
 				var v sql.Scanner
 				v = new(sql.NullString)
-				var col = &ColumnScan{ColumnName: columnName, Value: v}
+				var col = &ColumnScan{Value: v}
 				r = append(r, col)
 			}
 			var r2 []interface{}
@@ -64,99 +74,50 @@ func CollectAllTableData(db DbHolder, tablePks map[string][]string) (*AllTableSt
 			}
 			err = rows.Scan(r2...)
 			if err != nil {
-				return &AllTableStore{}, err
+				rows.Close()
+				return err
 			}
 
-			rowObject := &RowObject{ColScans: r, DiffStatus: DiffStatusInit, ModifiedColumnIndex: []uint8{}, IsBeforeData: false}
+			rowObject := &RowObject{ColScans: r, DiffStatus: DiffStatusInit, ModifiedColumnIndex: []uint8{}, ColumnNames: columns, IsBeforeData: false}
 			tableRows[rowObject.GetKey(pkColumns)] = rowObject
 		}
 		rows.Close()
 
 		//for _, v := range tableRows {
-		//	for _, v := range v.ColScans {
-		//		fmt.Printf("%s ", v)
-		//	}
-		//	fmt.Print("\n")
+		//	fmt.Println(v)
 		//}
 
-		before.AllData[tableName] = tableRows
-		before.TotalDataCount = totalRecordCount
+		ats.AllData[tableName] = tableRows
 	}
-	return before, err
+
+	ats.TotalDataCount = totalRecordCount
+	ats.alreadyCollectData = true
+	return err
 }
 
 type ColumnScan struct {
-	ColumnName string
-	Value      sql.Scanner
-	// TODO メモリ使用量が大きくなるため一旦キャッシュ取るのやめる
-	//valueString       string
-	//calcedValueString bool
+	Value sql.Scanner
 }
 
 func (rs *ColumnScan) String() string {
-	var s interface{}
-	name := reflect.TypeOf(rs.Value).String()
-	v := reflect.ValueOf(rs.Value)
-	switch name {
-	case "*sql.NullInt64":
-		if v.Elem().FieldByName("Valid").Bool() {
-			s = strconv.FormatInt(v.Elem().FieldByName("Int64").Int(), 10)
-		} else {
-			s = "<NULL>"
-		}
-	case "*sql.NullFloat64":
-		if v.Elem().FieldByName("Valid").Bool() {
-			s = v.Elem().FieldByName("Float64").Float()
-		} else {
-			s = "<NULL>"
-		}
-	case "*sql.NullString":
-		fallthrough
-	default:
-		if v.Elem().FieldByName("Valid").Bool() {
-			s = v.Elem().FieldByName("String").String()
-		} else {
-			s = "<NULL>"
-		}
-	}
-	return fmt.Sprintf("%s:%s", rs.ColumnName, s)
+	return fmt.Sprintf("[%s]", rs.GetValueString())
 }
+
 func (rs *ColumnScan) GetValueString() string {
-	// TODO メモリ使用量が大きくなるため一旦キャッシュ取るのやめる
-	//if rs.calcedValueString {
-	//	return rs.valueString
-	//}
-	var s interface{}
+	var s string
 	name := reflect.TypeOf(rs.Value).String()
 	v := reflect.ValueOf(rs.Value)
 	switch name {
 	// TODO もっとましなやり方は...
-	case "*sql.NullInt64":
-		if v.Elem().FieldByName("Valid").Bool() {
-			s = strconv.FormatInt(v.Elem().FieldByName("Int64").Int(), 10)
-		} else {
-			s = "<NULL>"
-		}
-	case "*sql.NullFloat64":
-		if v.Elem().FieldByName("Valid").Bool() {
-			s = v.Elem().FieldByName("Float64").Float()
-		} else {
-			s = "<NULL>"
-		}
-		// TODO NullStringで入れているので他のcaseは実際には要らない
 	case "*sql.NullString":
-		fallthrough
-	default:
 		if v.Elem().FieldByName("Valid").Bool() {
 			s = v.Elem().FieldByName("String").String()
 		} else {
 			s = "<NULL>"
 		}
+	default:
+		log.Fatalf("[WARN] unknown type [%s]\n", name)
 	}
-	// TODO メモリ使用量が大きくなるため一旦キャッシュ取るのやめる
-	//rs.valueString = fmt.Sprintf("%s", s)
-	//rs.calcedValueString = true
-	//return rs.valueString
 	return fmt.Sprintf("%s", s)
 }
 
@@ -167,26 +128,36 @@ func (rs *ColumnScan) Scan(value interface{}) error {
 type RowObject struct {
 	DiffStatus          int8
 	ModifiedColumnIndex []uint8
+	ColumnNames         []string
 	ColScans            []*ColumnScan
 	IsBeforeData        bool
-	key                 string
+}
+
+func (ro *RowObject) String() string {
+	builder := strings.Builder{}
+	builder.WriteString("(")
+	for index, colName := range ro.ColumnNames {
+		builder.WriteString("[")
+		builder.WriteString(colName)
+		builder.WriteString(":")
+		builder.WriteString(ro.ColScans[index].GetValueString())
+		builder.WriteString("]")
+	}
+	builder.WriteString(")")
+	return builder.String()
 }
 
 func (ro *RowObject) GetKey(pkColumns []string) string {
-	if len(ro.key) == 0 {
-		var key = ""
-		for _, v := range pkColumns {
-			for _, v2 := range ro.ColScans {
-				if v2.ColumnName == v {
-					key += v2.GetValueString()
-				}
+	var key = ""
+	for _, v := range pkColumns {
+		for index, v2 := range ro.ColumnNames {
+			if v2 == v {
+				key += ro.ColScans[index].GetValueString()
+				break
 			}
 		}
-		ro.key = key
-		return key
-	} else {
-		return ro.key
 	}
+	return key
 }
 func (ro *RowObject) EqualColumns(that *RowObject) bool {
 	if len(ro.ColScans) != len(that.ColScans) {
@@ -211,12 +182,6 @@ func (ro *RowObject) EqualColumns(that *RowObject) bool {
 		}
 	}
 	return result
-}
-
-type AllTableStore struct {
-	AllData        map[string]map[string]*RowObject
-	AllColumn      map[string][]string
-	TotalDataCount uint64
 }
 
 const (
