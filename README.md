@@ -12,6 +12,8 @@ go get -u github.com/jparound30/dbdiff/cmd/dbdiff
 
 ### Configuration
 Put `configuration.yaml` file in the current directory.  
+Or specify a configuration file path by `-conf` option. 
+
 A sample of `configuration.yaml`is as follows.
 
 ```yaml
@@ -29,7 +31,13 @@ db:
 ```
 dbdiff
 ```
-
+Usage:
+```
+  -conf string
+        Specify path of configuration file. (default "configuration.yaml")
+  -o string
+        Filename of result file(.xlsx). (default "dbdiff_yyyymmdd_hhmmss.xlsx")
+```
 2. Please operate accoding to the messages.
 
 3. Output result to console, and generate Excel file(.xlsx) in the current directory.
