@@ -12,7 +12,7 @@ func GetAllTables(db DbHolder, config *Configuration) ([]string, error) {
 	var rows *sql.Rows
 	switch config.Db.DbType {
 	case "postgresql":
-		rows, err = db.Query("select relname as TABLE_NAME from pg_stat_user_tables ORDER BY TABLE_NAME")
+		rows, err = db.Query("SELECT relname AS TABLE_NAME FROM pg_stat_user_tables ORDER BY TABLE_NAME")
 	case "mysql":
 		rows, err = db.Query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=database() ORDER BY TABLE_NAME")
 	case "mssql":
