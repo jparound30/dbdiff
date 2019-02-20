@@ -42,7 +42,6 @@ func (ats *AllTableStore) CollectAllTableData(db DbHolder, config *Configuration
 		}
 		rows, err := db.Query(query)
 		if err != nil {
-			rows.Close()
 			return err
 		}
 

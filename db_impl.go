@@ -12,6 +12,7 @@ import (
 )
 import _ "github.com/jackc/pgx/stdlib"
 import _ "github.com/go-sql-driver/mysql"
+import _ "github.com/denisenkom/go-mssqldb"
 
 var holder = &DBManager{db: nil, closed: true}
 var lock sync.Mutex
@@ -36,6 +37,11 @@ func GetDBInstance(dbConfig *Db) (*DBManager, error) {
 			fmt.Printf("Connect to ... "+connStringMysql+"\n", dbConfig.User, "********", dbConfig.Host, dbConfig.Port, dbConfig.Name)
 			connStr = fmt.Sprintf(connStringMysql, dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
 			driverName = "mysql"
+		case "mssql":
+			const connStringMSSql = "user id=%s;password=%s;server=%s;port=%s;database=%s;"
+			fmt.Printf("Connect to ... "+connStringMSSql+"\n", dbConfig.User, "********", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+			connStr = fmt.Sprintf(connStringMSSql, dbConfig.User, dbConfig.Password, dbConfig.Host, dbConfig.Port, dbConfig.Name)
+			driverName = "sqlserver"
 		default:
 			err := errors.New("unknown DbType")
 			return nil, err

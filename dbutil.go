@@ -12,9 +12,11 @@ func GetAllTables(db DbHolder, config *Configuration) ([]string, error) {
 	var rows *sql.Rows
 	switch config.Db.DbType {
 	case "postgresql":
-		rows, err = db.Query("select relname as TABLE_NAME from pg_stat_user_tables ORDER BY TABLE_NAME")
+		rows, err = db.Query("SELECT relname AS TABLE_NAME FROM pg_stat_user_tables ORDER BY TABLE_NAME")
 	case "mysql":
 		rows, err = db.Query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=database() ORDER BY TABLE_NAME")
+	case "mssql":
+		rows, err = db.Query("SELECT name AS TABLENAME FROM sys.objects WHERE type = 'U' ORDER BY TABLENAME")
 	default:
 		rows = nil
 		err = errors.New("unsupported dbtype [" + config.Db.DbType + "]")
@@ -79,6 +81,31 @@ func GetPksOfTables(db DbHolder, config *Configuration, tableNames []string) (ma
 			AND COLUMN_KEY = 'PRI'
 		ORDER BY
 			ORDINAL_POSITION
+		`)
+	case "mssql":
+		stmt, err = db.Prepare(`
+		SELECT
+		       kcu.ordinal_position AS PkOrder,
+		       ccu.column_name AS ColumnName
+		FROM
+		     information_schema.table_constraints tb_con
+		       INNER JOIN information_schema.constraint_column_usage ccu
+		         ON tb_con.constraint_catalog = ccu.constraint_catalog
+		              AND tb_con.constraint_schema = ccu.constraint_schema
+		              AND tb_con.constraint_name = ccu.constraint_name
+		       INNER JOIN information_schema.key_column_usage kcu
+		         ON tb_con.constraint_catalog = kcu.constraint_catalog
+		              AND tb_con.constraint_schema = kcu.constraint_schema
+		              AND tb_con.constraint_name = kcu.constraint_name
+		              AND ccu.column_name = kcu.column_name
+		WHERE
+		     tb_con.table_name = @p1
+		  AND tb_con.constraint_type = 'PRIMARY KEY'
+		ORDER BY
+		         tb_con.table_catalog
+		    , tb_con.table_name
+		    , tb_con.constraint_name
+		    , kcu.ordinal_position
 		`)
 	}
 	if err != nil || stmt == nil {
