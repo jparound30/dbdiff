@@ -17,14 +17,33 @@ Or specify a configuration file path by `-conf` option.
 A sample of `configuration.yaml`is as follows.
 
 ```yaml
+# PostgreSQL
 db:
-  type: postgresql (or mysql)
+  type: postgresql
   host: localhost
   port: 5432
   user: username
   password: password
   name: sampledatabase
   schema: hoge.
+
+# MySQL
+db:
+  type: mysql
+  host: localhost
+  port: 3306
+  user: username
+  password: password
+  name: sampledatabase
+
+# MS SQL Server
+db:
+  type: mssql
+  host: localhost
+  port: 1433
+  user: username
+  password: password
+  name: sampledatabase
 ```
 ### Run
 1. Execute `dbdiff` on the command line.
