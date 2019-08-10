@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/360EntSecGroup-Skylar/excelize"
+	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	"github.com/jparound30/dbdiff"
 	"log"
 	_ "net/http/pprof"
@@ -100,9 +100,10 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 		}
 		fmt.Println("===" + tableName + "===")
 
+		colName, _  := excelize.ColumnNumberToName(ci)
 		// テーブル名出力
 		xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "テーブル名")
-		xlsx.SetColWidth(SheetName, excelize.ToAlphaString(ci), excelize.ToAlphaString(ci), 15)
+		xlsx.SetColWidth(SheetName, colName, colName, 15)
 		xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), tableNameCellStyle)
 		ci++
 
@@ -184,8 +185,12 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 }
 
 func rowColIndexToAlpha(r int, c int) string {
-	s := excelize.ToAlphaString(c) + strconv.Itoa(r)
-	return s
+	if colName, err := excelize.ColumnNumberToName(c); err != nil {
+		log.Fatalf("Invalid row,column # : [r:%d, c:%d]", r, c)
+		return ""	// unreachable
+	} else {
+		return colName + strconv.Itoa(r)
+	}
 }
 
 // TODO 消したい
