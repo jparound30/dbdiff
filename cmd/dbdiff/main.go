@@ -9,13 +9,15 @@ import (
 	"log"
 	_ "net/http/pprof"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"time"
 )
 
 const (
-	DefaultConfigurationYaml    = "configuration.yaml"
-	DefaultOutputResultFilename = "dbdiff_yyyymmdd_hhmmss.xlsx"
+	DefaultConfigurationYaml    = "configuration.yaml"          // default configuration filename
+	DefaultOutputResultFilename = "dbdiff_yyyymmdd_hhmmss.xlsx" // default output filename
 )
 
 func main() {
@@ -82,37 +84,95 @@ func main() {
 	//wg.Wait()
 }
 
+const (
+	DiffResultOffsetForColumn = 2 // "B"
+	DiffResultOffsetForRow    = 2 // "2"
+	DiffResultMargin          = 2 // Margin between tables
+
+	SheetName = "Sheet1"
+)
+
 func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, outputFileName string) {
 	// TODO Excel出力　要refactoring
+	var err error
 	xlsx := excelize.NewFile()
-	const SheetName = "Sheet1"
 	xlsx.NewSheet(SheetName)
-	var ri = 2
-	var ci = 1
-	modCellStyle, _ := xlsx.NewStyle(`{"fill":{"type":"pattern","color":["#FFFF00"],"pattern":1}}`)
-	headerCellStyle, _ := xlsx.NewStyle(`{"fill":{"type":"pattern","color":["#92D050"],"pattern":1}}`)
-	tableNameCellStyle, _ := xlsx.NewStyle(`{"fill":{"type":"pattern","color":["#FFC000"],"pattern":1}}`)
+
+	var ri = DiffResultOffsetForRow
+	var ci = DiffResultOffsetForColumn
+	modCellStyle, err := xlsx.NewStyle(`
+{
+	"fill":{
+		"type":"pattern","color":["#FFFF00"],"pattern":1
+	},
+	"border":[
+		{"type":"left", "color":"#FF0000", "style":1},
+		{"type":"top", "color":"#FF0000", "style":1},
+		{"type":"right", "color":"#FF0000", "style":1},
+		{"type":"bottom", "color":"#FF0000", "style":1}
+	]
+}`)
+	checkErr(err)
+	unmodCellStyle, err := xlsx.NewStyle(`
+{
+	"border":[
+		{"type":"left", "color":"#000000", "style":1},
+		{"type":"top", "color":"#000000", "style":1},
+		{"type":"right", "color":"#000000", "style":1},
+		{"type":"bottom", "color":"#000000", "style":1}
+	]
+}`)
+	headerCellStyle, err := xlsx.NewStyle(`
+{
+	"fill":{
+		"type":"pattern","color":["#92D050"],"pattern":1
+	},
+	"border":[
+		{"type":"left", "color":"#000000", "style":1},
+		{"type":"top", "color":"#000000", "style":1},
+		{"type":"right", "color":"#000000", "style":1},
+		{"type":"bottom", "color":"#000000", "style":1}
+	]
+}`)
+	checkErr(err)
+	tableNameCellStyle, err := xlsx.NewStyle(`
+{
+	"fill":{"type":"pattern","color":["#FFC000"],"pattern":1}
+}`)
+	checkErr(err)
+
 	for tableName, value := range extractChangedData {
-		ci = 1
+
+		ci = DiffResultOffsetForColumn
 		if value == nil {
-			// 差分なしのテーブル
+			// table no differences
 			continue
 		}
 		fmt.Println("===" + tableName + "===")
 
-		colName, _  := excelize.ColumnNumberToName(ci)
+		///////
+		// Table name
+		///////
+		colName, _ := excelize.ColumnNumberToName(ci)
 		// テーブル名出力
-		xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "テーブル名")
-		xlsx.SetColWidth(SheetName, colName, colName, 15)
-		xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), tableNameCellStyle)
+		err = xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "TableName")
+		checkErr(err)
+		err = xlsx.SetColWidth(SheetName, colName, colName, 15)
+		checkErr(err)
+		err = xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), tableNameCellStyle)
+		checkErr(err)
+
 		ci++
+		err = xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), tableName)
+		checkErr(err)
 
-		xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), tableName)
+		///////
+		// Header ( Column names )
+		///////
 		ri++
-		ci = 1
+		ci = DiffResultOffsetForColumn
 
-		// カラム名出力
-		xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "差分")
+		xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "(diff)")
 		xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), headerCellStyle)
 
 		ci++
@@ -121,41 +181,47 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 			xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), headerCellStyle)
 			ci++
 		}
+
 		ri++
-		ci = 1
+		ci = DiffResultOffsetForColumn
 
 		for _, v := range value {
 			switch v.DiffStatus {
 			case dbdiff.DiffStatusAdd:
 				fmt.Printf("INSERTED        : %s\n", v)
-				ci = 1
-				xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "追加")
-
+				ci = DiffResultOffsetForColumn
+				xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "INSERTED")
+				xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), unmodCellStyle)
 				for _, col := range v.ColScans {
 					ci++
 					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), col.GetValueString())
+					xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), unmodCellStyle)
 				}
 			case dbdiff.DiffStatusDel:
 				fmt.Printf("DELETED         : %s\n", v)
-				ci = 1
-				xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "削除")
+				ci = DiffResultOffsetForColumn
+				xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "DELETED")
+				xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), unmodCellStyle)
 
 				for _, col := range v.ColScans {
 					ci++
 					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), col.GetValueString())
+					xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), unmodCellStyle)
 				}
 			case dbdiff.DiffStatusMod:
-				ci = 1
+				ci = DiffResultOffsetForColumn
 				if v.IsBeforeData {
 					fmt.Printf("UPDATED[Before] : %s\n", v)
-					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "変更前")
+					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "UPD BEFORE")
 				} else {
 					fmt.Printf("UPDATED[After ] : %s\n", v)
-					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "変更後")
+					xlsx.SetCellStr(SheetName, rowColIndexToAlpha(ri, ci), "UPD  AFTER")
 				}
+				xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), unmodCellStyle)
 
 				for colIndex, col := range v.ColScans {
 					ci++
+					xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), unmodCellStyle)
 					for _, value := range v.ModifiedColumnIndex {
 						if int(value) == colIndex {
 							xlsx.SetCellStyle(SheetName, rowColIndexToAlpha(ri, ci), rowColIndexToAlpha(ri, ci), modCellStyle)
@@ -171,23 +237,44 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 			}
 			ri++
 		}
-		ri += 2
+		ri += DiffResultMargin
 	}
+
+	xlsxFilename := generateOutFilename(outputFileName)
+	xlsx.SaveAs(xlsxFilename)
+	fmt.Println("[ResultOutput] See " + xlsxFilename)
+
+	// EXCELファイルを表示する
+	if runtime.GOOS == "darwin" {
+		if err := exec.Command("/usr/bin/open", xlsxFilename).Start(); err != nil {
+			log.Fatalf("err = %v", err)
+		}
+	} else if runtime.GOOS == "windows" {
+		if err := exec.Command("cmd", "/C", xlsxFilename).Start(); err != nil {
+			log.Fatalf("err = %v", err)
+		}
+	}
+}
+
+// Generate Output filename.
+func generateOutFilename(specifiedFilename string) string {
 	var xlsxFilename string
-	if outputFileName == DefaultOutputResultFilename {
+	if specifiedFilename == DefaultOutputResultFilename {
 		// default filename
 		xlsxFilename = "dbdiff_" + time.Now().Format("20060102_150405") + ".xlsx"
 	} else {
-		xlsxFilename = outputFileName
+		xlsxFilename = specifiedFilename
 	}
-	xlsx.SaveAs(xlsxFilename)
-	fmt.Println("[ResultOutput] See " + xlsxFilename)
+	return xlsxFilename
 }
 
+// Convert (int, int) to "A1" format string
+//
+// r and c is [1..]
 func rowColIndexToAlpha(r int, c int) string {
 	if colName, err := excelize.ColumnNumberToName(c); err != nil {
 		log.Fatalf("Invalid row,column # : [r:%d, c:%d]", r, c)
-		return ""	// unreachable
+		return "" // unreachable
 	} else {
 		return colName + strconv.Itoa(r)
 	}
@@ -196,6 +283,6 @@ func rowColIndexToAlpha(r int, c int) string {
 // TODO 消したい
 func checkErr(err error) {
 	if err != nil {
-		panic(err)
+		log.Fatalf("ERROR : %v", err)
 	}
 }
