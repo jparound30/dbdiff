@@ -62,4 +62,6 @@ Usage:
 3. Output result to console, and generate Excel file(.xlsx) in the current directory.
 
 ## LIMITATIONS
-- Tested only on macOS High Sierra / Go 1.11
+- Tested on macOS Catalina / Go 1.13
+- Tested on Windows 10 Ver.1909 / Go 1.13
+- Tested on Ubuntu 19.10  / Go 1.13
