@@ -44,10 +44,10 @@ func main() {
 	fmt.Println("[INITIALIZING] Collecting Table Information ...")
 	tableNames, err := dbdiff.GetAllTables(db, configuration)
 	checkErr(err)
+	fmt.Printf("Table count: %d\n", len(tableNames))
 
 	tablePks, err := dbdiff.GetPksOfTables(db, configuration, tableNames)
 	checkErr(err)
-
 	//for key, value := range tablePks {
 	//	fmt.Printf("TABLE:%s, PK_COLUMN:%s\n", key, value)
 	//}
@@ -59,19 +59,32 @@ func main() {
 	fmt.Printf(", Total record count: %d ...", before.TotalDataCount)
 	fmt.Println(" COMPLETE!")
 
-	fmt.Printf("OK, Let's do some operations, THEN HIT ANY KEY!")
 	stdin := bufio.NewScanner(os.Stdin)
-	stdin.Scan()
 
-	fmt.Print("\n[AFTER ] Collecting snapshot data...")
-	after := dbdiff.AllTableStore{}
-	err = after.CollectAllTableData(db, configuration, tablePks)
-	checkErr(err)
-	fmt.Printf(", Total record count: %d ...", after.TotalDataCount)
-	fmt.Println("COMPLETE!")
+	printMemStat()
+	fmt.Printf("OK, Let's do some operations, THEN HIT ANY KEY! OR type 'q' or 'exit' to quit this tool.  ")
+	for stdin.Scan() {
+		input := stdin.Text()
+		if input == "q" || input == "exit" {
+			break
+		}
 
-	extractChangedData := after.ExtractChangedData(&before)
-	outputResultToExcelFile(extractChangedData, outputFileName)
+		fmt.Print("\n[AFTER ] Collecting snapshot data...")
+		after := dbdiff.AllTableStore{}
+		err = after.CollectAllTableData(db, configuration, tablePks)
+		checkErr(err)
+		fmt.Printf(", Total record count: %d ...", after.TotalDataCount)
+		fmt.Println("COMPLETE!")
+
+		extractChangedData := after.ExtractChangedData(&before)
+		outputResultToExcelFile(extractChangedData, outputFileName)
+
+		// swap
+		before = after
+
+		printMemStat()
+		fmt.Printf("OK, Let's do some operations, THEN HIT ANY KEY! OR type 'q' or 'exit' to quit this tool.  ")
+	}
 
 	// TODO プロファイル用 そのうち削除
 	//var wg sync.WaitGroup
@@ -285,4 +298,11 @@ func checkErr(err error) {
 	if err != nil {
 		log.Fatalf("ERROR : %v", err)
 	}
+}
+
+func printMemStat() {
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	heapAllocMegas := float64(mem.HeapAlloc) / float64(1024*1024)
+	fmt.Printf("Heap memory usage: %.3f MB\n", heapAllocMegas)
 }
