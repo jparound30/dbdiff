@@ -16,8 +16,8 @@ Or specify a configuration file path by `-conf` option.
 
 A sample of `configuration.yaml`is as follows.
 
+#### PostgreSQL
 ```yaml
-# PostgreSQL
 db:
   type: postgresql
   host: localhost
@@ -26,8 +26,9 @@ db:
   password: password
   name: sampledatabase
   schema: hoge.
-
-# MySQL
+```
+#### MySQL
+```yaml
 db:
   type: mysql
   host: localhost
@@ -35,8 +36,9 @@ db:
   user: username
   password: password
   name: sampledatabase
-
-# MS SQL Server
+```
+#### MS SQL Server
+```yaml
 db:
   type: mssql
   host: localhost
