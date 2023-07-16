@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"github.com/360EntSecGroup-Skylar/excelize/v2"
 	"github.com/jparound30/dbdiff"
+	"github.com/xuri/excelize/v2"
 	"log"
 	_ "net/http/pprof"
 	"os"
@@ -113,45 +113,61 @@ func outputResultToExcelFile(extractChangedData map[string][]*dbdiff.RowObject, 
 
 	var ri = DiffResultOffsetForRow
 	var ci = DiffResultOffsetForColumn
-	modCellStyle, err := xlsx.NewStyle(`
-{
-	"fill":{
-		"type":"pattern","color":["#FFFF00"],"pattern":1
-	},
-	"border":[
-		{"type":"left", "color":"#FF0000", "style":1},
-		{"type":"top", "color":"#FF0000", "style":1},
-		{"type":"right", "color":"#FF0000", "style":1},
-		{"type":"bottom", "color":"#FF0000", "style":1}
-	]
-}`)
+
+	var modBorderColor = "#FF0000"
+	var commonBorderStyle = 1
+	modCellStyle, err := xlsx.NewStyle(
+		&excelize.Style{
+			Fill: excelize.Fill{
+				Type:    "pattern",
+				Color:   []string{"#FFFF00"},
+				Pattern: 1,
+			},
+			Border: []excelize.Border{
+				excelize.Border{Type: "left", Color: modBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "top", Color: modBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "right", Color: modBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "bottom", Color: modBorderColor, Style: commonBorderStyle},
+			},
+		})
+
 	checkErr(err)
-	unmodCellStyle, err := xlsx.NewStyle(`
-{
-	"border":[
-		{"type":"left", "color":"#000000", "style":1},
-		{"type":"top", "color":"#000000", "style":1},
-		{"type":"right", "color":"#000000", "style":1},
-		{"type":"bottom", "color":"#000000", "style":1}
-	]
-}`)
-	headerCellStyle, err := xlsx.NewStyle(`
-{
-	"fill":{
-		"type":"pattern","color":["#92D050"],"pattern":1
-	},
-	"border":[
-		{"type":"left", "color":"#000000", "style":1},
-		{"type":"top", "color":"#000000", "style":1},
-		{"type":"right", "color":"#000000", "style":1},
-		{"type":"bottom", "color":"#000000", "style":1}
-	]
-}`)
+
+	var unmodBorderColor = "#000000"
+	unmodCellStyle, err := xlsx.NewStyle(
+		&excelize.Style{
+			Border: []excelize.Border{
+				excelize.Border{Type: "left", Color: unmodBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "top", Color: unmodBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "right", Color: unmodBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "bottom", Color: unmodBorderColor, Style: commonBorderStyle},
+			},
+		})
+
+	var headerBorderColor = "#000000"
+	headerCellStyle, err := xlsx.NewStyle(
+		&excelize.Style{
+			Fill: excelize.Fill{
+				Type:    "pattern",
+				Color:   []string{"#92D050"},
+				Pattern: 1,
+			},
+			Border: []excelize.Border{
+				excelize.Border{Type: "left", Color: headerBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "top", Color: headerBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "right", Color: headerBorderColor, Style: commonBorderStyle},
+				excelize.Border{Type: "bottom", Color: headerBorderColor, Style: commonBorderStyle},
+			},
+		})
 	checkErr(err)
-	tableNameCellStyle, err := xlsx.NewStyle(`
-{
-	"fill":{"type":"pattern","color":["#FFC000"],"pattern":1}
-}`)
+	tableNameCellStyle, err := xlsx.NewStyle(
+		&excelize.Style{
+			Fill: excelize.Fill{
+				Type:    "pattern",
+				Color:   []string{"#FFC000"},
+				Pattern: 1,
+			},
+		})
 	checkErr(err)
 
 	for tableName, value := range extractChangedData {
